@@ -1,0 +1,770 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Investor Pipeline Dashboard</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f2f5; color: #1a1a2e; }
+
+header {
+background: linear-gradient(135deg, #1a1a2e, #16213e);
+color: white;
+padding: 14px 24px;
+display: flex;
+align-items: center;
+justify-content: space-between;
+}
+header h1 { font-size: 18px; font-weight: 700; letter-spacing: 0.5px; }
+header span { font-size: 12px; opacity: 0.6; }
+
+.summary {
+display: flex;
+gap: 10px;
+padding: 12px 20px;
+flex-wrap: wrap;
+}
+.stat-card {
+background: white;
+border-radius: 8px;
+padding: 8px 16px;
+flex: 1;
+min-width: 100px;
+text-align: center;
+box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+.stat-card .num { font-size: 22px; font-weight: 800; }
+.stat-card .label { font-size: 10px; color: #888; margin-top: 2px; }
+.stat-card.total .num { color: #1a1a2e; }
+.stat-card.done .num { color: #22c55e; }
+.stat-card.progress .num { color: #f59e0b; }
+.stat-card.pending .num { color: #94a3b8; }
+
+.filters {
+padding: 0 20px 10px;
+display: flex;
+gap: 6px;
+flex-wrap: wrap;
+}
+.filter-btn {
+padding: 4px 12px;
+border-radius: 14px;
+border: 1px solid #ddd;
+background: white;
+cursor: pointer;
+font-size: 11px;
+transition: all 0.2s;
+}
+.filter-btn.active, .filter-btn:hover {
+background: #1a1a2e;
+color: white;
+border-color: #1a1a2e;
+}
+
+.table-wrap { padding: 0 20px 20px; overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 8px rgba(0,0,0,0.07); }
+thead tr { background: #1a1a2e; color: white; }
+th { padding: 7px 8px; font-size: 10px; font-weight: 600; text-align: right; letter-spacing: 0.3px; white-space: nowrap; }
+td { padding: 6px 8px; font-size: 11px; border-bottom: 1px solid #f0f2f5; vertical-align: middle; }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: #fafbff; }
+
+.investor-name { font-weight: 700; font-size: 11.5px; }
+.llc-name { color: #6366f1; font-size: 10px; margin-top: 1px; }
+
+.badge {
+display: inline-flex;
+align-items: center;
+gap: 3px;
+padding: 2px 7px;
+border-radius: 10px;
+font-size: 10px;
+font-weight: 600;
+white-space: nowrap;
+}
+.badge.done { background: #dcfce7; color: #15803d; }
+.badge.pending { background: #fef9c3; color: #a16207; }
+.badge.waiting { background: #f1f5f9; color: #64748b; }
+.badge.forming { background: #ede9fe; color: #7c3aed; }
+.badge.inprogress { background: #ffedd5; color: #c2410c; }
+
+.dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+
+.prop-cell { font-size: 10px; color: #555; line-height: 1.4; }
+.prop-cell.empty { color: #ccc; }
+
+/* Property slot grouped header (spec 18/05/2026) */
+th.prop-group { background: #2a2a3e; color: white; text-align: center; border-bottom: 1px solid #3a3a4e; font-size: 11px; }
+th.prop-sub { background: #1a1a2e; color: #cbd5e1; font-weight: 500; font-size: 10px; text-align: center; }
+td.prop-slot { font-size: 10px; padding: 4px 6px; text-align: right; vertical-align: middle; }
+td.prop-slot.empty { color: #ccc; text-align: center; }
+td.prop-slot.owned { background: #dcfce7; }
+td.prop-slot.go-given { color: #888; font-style: italic; }
+td.prop-slot.under-contract { /* normal */ }
+td.prop-slot.slot-sep { border-right: 2px solid #e5e7eb; }
+
+
+.address-line { font-size: 9px; color: #aaa; margin-top: 1px; }
+
+.registered-address {
+display: flex;
+align-items: center;
+justify-content: center;
+gap: 8px;
+padding: 6px 20px;
+background: #f8f9fb;
+border-bottom: 1px solid #e5e7eb;
+font-size: 11px;
+color: #64748b;
+direction: ltr;
+text-align: center;
+}
+.ra-label { font-weight: 600; color: #475569; white-space: nowrap; }
+.ra-value { font-family: 'Segoe UI', monospace; color: #1a1a2e; letter-spacing: 0.2px; }
+
+.updated { font-size: 10px; color: #aaa; text-align: center; padding: 8px; }
+
+/* Clickable rows */
+tbody tr.inv-row { cursor: pointer; transition: background 0.15s; }
+tbody tr.inv-row:hover td { background: #f0f4ff; }
+tbody tr.inv-row.expanded td { background: #f7f8ff; border-bottom: none; }
+
+/* HOLD (paused) clients — grayed "off" look, pushed to the bottom of the list */
+tbody tr.inv-row.hold-row td { background: #f3f4f6; color: #9ca3af; }
+tbody tr.inv-row.hold-row:hover td { background: #eceef1; }
+tbody tr.inv-row.hold-row .investor-name { color: #6b7280; }
+tbody tr.inv-row.hold-row .llc-name { color: #a8a9c4; }
+tbody tr.inv-row.hold-row .badge { filter: grayscale(1); opacity: 0.65; }
+tbody tr.inv-row.hold-row a { filter: grayscale(0.55); }
+
+/* Detail panel row */
+tr.detail-row { display: none; }
+tr.detail-row.open { display: table-row; }
+tr.detail-row td {
+padding: 0;
+background: #f7f8ff;
+border-bottom: 2px solid #e0e4ef;
+}
+.detail-panel {
+display: flex;
+gap: 12px;
+padding: 10px 16px 12px;
+direction: ltr;
+flex-wrap: wrap;
+max-width: 700px;
+margin: 0 auto;
+}
+.detail-field {
+flex: 1;
+min-width: 160px;
+max-width: 320px;
+background: white;
+border-radius: 8px;
+padding: 8px 12px;
+box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+cursor: pointer;
+transition: box-shadow 0.15s;
+position: relative;
+}
+.detail-field:hover { box-shadow: 0 2px 8px rgba(99,102,241,0.15); }
+.detail-field .df-label {
+font-size: 9px;
+font-weight: 600;
+color: #6366f1;
+text-transform: uppercase;
+letter-spacing: 0.5px;
+margin-bottom: 3px;
+}
+.detail-field .df-value {
+font-size: 12px;
+color: #1a1a2e;
+line-height: 1.5;
+white-space: pre-line;
+font-family: 'Segoe UI', sans-serif;
+}
+.detail-field .df-value.missing { color: #aaa; font-style: italic; }
+.detail-field .copy-hint {
+position: absolute;
+top: 6px;
+right: 8px;
+font-size: 9px;
+color: #bbb;
+opacity: 0;
+transition: opacity 0.15s;
+}
+.detail-field:hover .copy-hint { opacity: 1; }
+.detail-field.copied .copy-hint { color: #22c55e; opacity: 1; }
+
+/* Password screen */
+#auth-screen {
+position: fixed; inset: 0; z-index: 99999;
+background: linear-gradient(135deg, #1a1a2e, #16213e);
+display: flex; align-items: center; justify-content: center;
+flex-direction: column; gap: 18px;
+}
+#auth-screen h2 { color: #fff; font-size: 28px; }
+#auth-screen input {
+padding: 12px 18px; font-size: 20px; border-radius: 10px; border: 2px solid #e94560;
+text-align: center; width: 180px; letter-spacing: 8px; background: rgba(255,255,255,0.95);
+outline: none;
+}
+#auth-screen input:focus { border-color: #f39c12; box-shadow: 0 0 15px rgba(243,156,18,0.4); }
+#auth-screen .auth-err { color: #e94560; font-size: 13px; min-height: 18px; }
+#auth-screen button {
+padding: 10px 36px; font-size: 16px; border: none; border-radius: 8px;
+background: #e94560; color: #fff; cursor: pointer; font-weight: 600;
+}
+#auth-screen button:hover { background: #d63851; }
+</style>
+</head>
+<body>
+
+<!-- Password screen -->
+<div id="auth-screen">
+<h2>🔒</h2>
+<input type="password" id="auth-input" maxlength="4" placeholder="••••" autofocus
+onkeydown="if(event.key==='Enter')checkAuth()">
+<button onclick="checkAuth()">כניסה</button>
+<div class="auth-err" id="auth-err"></div>
+</div>
+<script>
+function checkAuth() {
+if (document.getElementById('auth-input').value === '2002') {
+document.getElementById('auth-screen').style.display = 'none';
+sessionStorage.setItem('ipipe_ok','1');
+} else {
+document.getElementById('auth-err').textContent = 'סיסמא שגויה';
+document.getElementById('auth-input').value = '';
+document.getElementById('auth-input').focus();
+}
+}
+// Decryption key from the URL FRAGMENT (#k=...) - browsers never send it to servers/logs.
+// This both unlocks the view AND decrypts the data. Legacy ?k=2002 still unlocks (plaintext mode).
+function getDashKey() {
+const h = new URLSearchParams((window.location.hash || '').replace(/^#/, ''));
+return h.get('k');
+}
+const DASH_KEY = getDashKey();
+if (DASH_KEY || new URLSearchParams(window.location.search).get('k') === '2002') {
+sessionStorage.setItem('ipipe_ok','1');
+}
+if (sessionStorage.getItem('ipipe_ok') === '1') {
+document.addEventListener('DOMContentLoaded', () => {
+document.getElementById('auth-screen').style.display = 'none';
+});
+}
+</script>
+
+<header>
+<h1>🏠 Investor Pipeline</h1>
+<span id="date-display"></span>
+</header>
+
+<div class="summary">
+<div class="stat-card total"><div class="num" id="s-total">0</div><div class="label">סה"כ לקוחות</div></div>
+<div class="stat-card done"><div class="num" id="s-ein">0</div><div class="label">EIN התקבל</div></div>
+<div class="stat-card progress"><div class="num" id="s-ss4">0</div><div class="label">ממתין ל-EIN</div></div>
+<div class="stat-card pending"><div class="num" id="s-forming">0</div><div class="label">בהקמה</div></div>
+</div>
+
+<div class="registered-address">
+<span class="ra-label">📍 Registered Agent Address:</span>
+<span class="ra-value" id="ra-address"></span>
+</div>
+
+<div class="filters">
+<button class="filter-btn active" onclick="filter('all', this)">הכל</button>
+<button class="filter-btn" onclick="filter('ein', this)">✅ EIN התקבל</button>
+<button class="filter-btn" onclick="filter('ss4', this)">⏳ ממתין ל-EIN</button>
+<button class="filter-btn" onclick="filter('forming', this)">🔄 בהקמה</button>
+<button class="filter-btn" onclick="filter('bank', this)">🏦 עם חשבון בנק</button>
+<button class="filter-btn" onclick="filter('hold', this)">⏸️ HOLD (מושהה)</button>
+</div>
+
+<div class="table-wrap">
+<table id="main-table">
+<thead>
+<tr>
+<th rowspan="2">משקיע</th>
+<th rowspan="2">LLC</th>
+<th rowspan="2">הקמה</th>
+<th rowspan="2">SS4</th>
+<th rowspan="2">EIN</th>
+<th rowspan="2">חשבון בנק</th>
+<th rowspan="2">העברת כסף</th>
+<th colspan="4" class="prop-group">הנכס</th>
+</tr>
+<tr>
+<th class="prop-sub">כתובת</th>
+<th class="prop-sub">שולם</th>
+<th class="prop-sub">נותר לשלם</th>
+<th class="prop-sub">ימים לסגירה</th>
+</tr>
+</thead>
+<tbody id="tbody"></tbody>
+</table>
+</div>
+<div class="updated">עודכן לאחרונה: <span id="updated-date"></span></div>
+
+<script>
+let investors = [];
+
+// Load investor data. With a key in the URL fragment -> fetch the ENCRYPTED blob and
+// decrypt in-browser (public repo holds only ciphertext). Without -> legacy plaintext path.
+async function loadData() {
+try {
+if (DASH_KEY) {
+const enc = await (await fetch('data.enc.json?t=' + Date.now())).json();
+investors = await decryptData(enc, DASH_KEY);
+} else {
+const res = await fetch('data.json?t=' + Date.now());
+investors = await res.json();
+}
+} catch (e) {
+console.error('Failed to load data:', e);
+const el = document.getElementById('tbody');
+if (el) el.innerHTML = '<tr><td colspan="11" style="padding:20px;text-align:center;color:#c00">טעינת הנתונים נכשלה - ייתכן שהלינק חסר את המפתח או שהמפתח שגוי.</td></tr>';
+}
+initDashboard();
+}
+
+function b64ToBytes(s) {
+const bin = atob(s); const a = new Uint8Array(bin.length);
+for (let i = 0; i < bin.length; i++) a[i] = bin.charCodeAt(i);
+return a;
+}
+function b64urlToBytes(s) {
+s = s.replace(/-/g, '+').replace(/_/g, '/');
+while (s.length % 4) s += '=';
+return b64ToBytes(s);
+}
+async function decryptData(enc, keyB64url) {
+const key = await crypto.subtle.importKey('raw', b64urlToBytes(keyB64url), { name: 'AES-GCM' }, false, ['decrypt']);
+const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: b64ToBytes(enc.iv) }, key, b64ToBytes(enc.ct));
+return JSON.parse(new TextDecoder().decode(pt));
+}
+
+const REGISTERED_ADDRESS = '5901 Balcones Drive, STE 100, Austin TX 78731, USA';
+
+const labels = {
+done: { text: "✅", cls: "done" },
+pending: { text: "⏳", cls: "pending" },
+waiting: { text: "—", cls: "waiting" },
+forming: { text: "🔄", cls: "forming" },
+inprogress: { text: "🟠", cls: "inprogress" }
+};
+
+function badge(key) {
+if (!key) return `<span class="badge waiting">—</span>`;
+const l = labels[key];
+return `<span class="badge ${l.cls}">${l.text}</span>`;
+}
+
+function propCell(p) {
+if (!p) return `<span class="prop-cell empty">—</span>`;
+return `<div class="prop-cell">
+📍 ${p.address || '—'}<br>
+${p.tenant ? '👤 שוכר: ' + p.tenant : '🔓 אין שוכר'}
+</div>`;
+}
+
+// Hadash v2 contact helpers
+function _contactPhones(inv) {
+if (Array.isArray(inv.contacts)) {
+return inv.contacts.filter(c => c.phone).map(c => ({ name: c.name, phone: c.phone }));
+}
+if (inv.phone) {
+return inv.phone.split(', ').map(p => {
+const m = p.split(': ');
+return m.length === 2 ? { name: m[0], phone: m[1] } : { name: '', phone: p };
+});
+}
+return [];
+}
+function _contactEmails(inv) {
+if (Array.isArray(inv.contacts)) {
+return inv.contacts.filter(c => c.email).map(c => ({ name: c.name, email: c.email }));
+}
+if (inv.email) {
+return inv.email.split(', ').map(e => ({ name: '', email: e }));
+}
+return [];
+}
+function renderPhones(inv) {
+const list = _contactPhones(inv);
+if (!list.length) return '<span class="missing">—</span>';
+return list.map(p => {
+const label = p.name ? `<span style="color:#888;font-size:11px;">${p.name}:</span> ` : '';
+return `<div style="margin:2px 0;cursor:pointer;" onclick="event.stopPropagation();navigator.clipboard.writeText('${p.phone}');this.style.opacity=0.5;setTimeout(()=>this.style.opacity=1,600)">${label}<span style="color:#4361ee;">${p.phone}</span></div>`;
+}).join('');
+}
+function renderEmails(inv) {
+const list = _contactEmails(inv);
+if (!list.length) return '<span class="missing">—</span>';
+return list.map(e => {
+const label = e.name ? `<span style="color:#888;font-size:11px;">${e.name}:</span> ` : '';
+return `<div style="margin:2px 0;cursor:pointer;" onclick="event.stopPropagation();navigator.clipboard.writeText('${e.email}');this.style.opacity=0.5;setTimeout(()=>this.style.opacity=1,600)">${label}<a href="mailto:${e.email}" style="color:#4361ee;text-decoration:none;font-size:12px;" onclick="event.stopPropagation()">${e.email}</a></div>`;
+}).join('');
+}
+function fundingBadge(inv) {
+if (inv.hold) return ''; // paused clients show no action prompts
+// Once a purchase contract is signed (a contracted deal exists), suppress BOTH
+// "Ready to buy" and "R2P sent" — they are pre-contract indicators and become
+// stale/misleading the moment the client is under contract. (Yossi 02/06/2026)
+if (contractedDeal(inv)) return '';
+// Show only "Ready to buy" (when actionable) and "R2P sent" indicator.
+// Other states are already visible in left-side column badges (bank/funding/etc).
+const owners = (inv.contacts || []).filter(c => c.role === 'member' || c.role === 'spouse');
+const allHaveEmail = owners.length > 0 && owners.every(c => c.email);
+const isReadyToBuy = inv.bank === 'done' && inv.funding === 'done' && allHaveEmail;
+const r2pSent = inv.readyToProceedSent ? `<span style="display:inline-block;padding:1px 6px;border-radius:8px;background:#6366f1;color:#fff;font-size:9px;margin-right:3px;" title="Ready-to-Proceed sent ${inv.readyToProceedSent}">✉️ R2P sent</span>` : '';
+const ready = isReadyToBuy ? `<span style="display:inline-block;padding:2px 8px;border-radius:10px;background:#10b981;color:#fff;font-size:10px;margin-right:4px;" title="Bank+funding done, all owners have email — ready to send Ready-to-Proceed">🟢 Ready to buy</span>` : '';
+return r2pSent + ready;
+}
+
+// Drive folder button — opens investor's Drive folder in new tab
+function driveButton(inv) {
+if (!inv.driveFolderUrl) return '';
+return `<a href="${inv.driveFolderUrl}" target="_blank" onclick="event.stopPropagation()" style="display:inline-block;margin-right:6px;padding:1px 6px;background:#fef3c7;color:#92400e;border-radius:6px;font-size:10px;text-decoration:none;font-weight:600;" title="פתח תיקיית מסמכים בדרייב">📁 קבצים</a>`;
+}
+
+// Trello board button — shows for any investor active in the deal pipeline:
+// R2P sent, stage advanced to "deal", or a live deal exists. One shared ops board.
+const TRELLO_BOARD_URL = 'https://trello.com/b/epW8eH9H';
+function onTrelloPipeline(inv) {
+if (inv.readyToProceedSent) return true;
+if (inv.stage === 'deal') return true;
+return Array.isArray(inv.deals) && inv.deals.some(d => ['go-given','under-contract','closed'].includes(d.status));
+}
+function trelloButton(inv) {
+if (!onTrelloPipeline(inv)) return '';
+const url = inv.trelloBoardUrl || TRELLO_BOARD_URL;
+return `<a href="${url}" target="_blank" onclick="event.stopPropagation()" style="display:inline-block;margin-right:6px;padding:1px 6px;background:#dbeafe;color:#1e40af;border-radius:6px;font-size:10px;text-decoration:none;font-weight:600;" title="פתח בורד Trello (ניהול עסקאות)">📋 טרלו</a>`;
+}
+
+// HOLD tag — small gray "paused" chip on the investor name for HOLD clients
+function holdBadge(inv) {
+if (!inv.hold) return '';
+return `<span style="display:inline-block;padding:1px 7px;border-radius:8px;background:#9ca3af;color:#fff;font-size:9px;margin-left:4px;font-weight:700;letter-spacing:0.3px;" title="לקוח מושהה (HOLD)">⏸️ HOLD</span>`;
+}
+
+// Property purchase stages: בחרה בית → נחתם חוזה → שולמה מקדמה → סגירה
+function purchaseStages(deal) {
+const choseHome = !!deal.address;
+const contractSigned = ['under-contract', 'closed', 'sold'].includes(deal.status);
+const downPaid = !!deal.downPaymentPaid;
+const closed = ['closed', 'sold'].includes(deal.status);
+const stages = [
+{ label: '🏠 בחרה בית', active: choseHome },
+{ label: '📝 נחתם חוזה', active: contractSigned },
+{ label: '💵 שולמה מקדמה', active: downPaid },
+{ label: '🔑 סגירה', active: closed }
+];
+return stages.map(s => `<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;margin-left:4px;background:${s.active ? '#dcfce7' : '#f1f5f9'};color:${s.active ? '#15803d' : '#94a3b8'};">${s.label}</span>`).join('');
+}
+
+// NEW: one-line balance/closing indicator with countdown + color by urgency.
+// Cash deals → balance amount + due date. Financed deals → close date + lender. Closed → green check.
+function balanceLine(deal) {
+if (!deal) return '';
+let due = deal.closingDate || deal.balanceDueDate;
+if (!due && deal.contractDate) {
+const c = new Date(deal.contractDate);
+c.setDate(c.getDate() + 30);
+due = c.toISOString().slice(0, 10);
+}
+const closed = ['closed', 'sold'].includes(deal.status);
+if (closed) {
+return `<div style="margin-top:6px;padding:4px 10px;border-radius:8px;background:#dcfce7;color:#15803d;font-size:11px;display:inline-block;">✅ נסגר ${due ? due.slice(8,10)+'/'+due.slice(5,7) : ''}</div>`;
+}
+if (!due) return '';
+const dueDate = new Date(due);
+const today = new Date(); today.setHours(0,0,0,0);
+const days = Math.round((dueDate - today) / 86400000);
+const ddmm = due.slice(8,10) + '/' + due.slice(5,7);
+let bg = '#dcfce7', fg = '#15803d';
+if (days < 0)        { bg = '#fee2e2'; fg = '#b91c1c'; }
+else if (days < 7)   { bg = '#fee2e2'; fg = '#b91c1c'; }
+else if (days < 15)  { bg = '#fef3c7'; fg = '#a16207'; }
+const countdown = days < 0 ? `איחור ${-days} ימים`
+: days === 0 ? 'היום'
+: days === 1 ? 'מחר'
+: `בעוד ${days} ימים`;
+const isFinanced = deal.financing === 'financed' || deal.financing === 'finance';
+if (isFinanced) {
+const lender = deal.lender ? ` · מימון: ${deal.lender}` : '';
+return `<div style="margin-top:6px;padding:4px 10px;border-radius:8px;background:${bg};color:${fg};font-size:11px;display:inline-block;">🔑 סגירה ${ddmm} (${countdown})${lender}</div>`;
+}
+const earnest = typeof deal.earnestAmount === 'number' ? deal.earnestAmount : 0;
+const balance = deal.price ? deal.price - earnest : null;
+const balanceFmt = balance != null ? ` $${balance.toLocaleString()}` : '';
+const label = deal.price ? `💰 יתרה לקבלן:${balanceFmt} · 📅 ${ddmm} (${countdown})` : `📅 ${ddmm} (${countdown})`;
+return `<div style="margin-top:6px;padding:4px 10px;border-radius:8px;background:${bg};color:${fg};font-size:11px;display:inline-block;">${label}</div>`;
+}
+
+function dealsSection(inv) {
+const deals = inv.deals || [];
+if (deals.length === 0) return '';
+return `
+<div class="detail-field" style="grid-column:1/-1;background:#fafffe;border:1px solid #e0e7ff;">
+<div class="df-label" style="color:#6366f1;">🏘️ רכישת בית</div>
+<div class="df-value" style="font-size:12px;">
+${deals.map(d => {
+const mapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(d.address)}`;
+const priceFmt = d.price ? `<span style="color:#666;"> · $${d.price.toLocaleString()}</span>` : '';
+const signedLine = d.contractDate
+? `<span style="color:#888;font-size:10px;margin-right:8px;">נחתם ${d.contractDate.slice(8,10)}/${d.contractDate.slice(5,7)}</span>`
+: '';
+return `
+<div style="margin:6px 0;">
+<div>${purchaseStages(d)}${signedLine}</div>
+<div style="margin-top:4px;">
+<a href="${mapUrl}" target="_blank" style="color:#1a1a2e;font-weight:600;text-decoration:none;" onclick="event.stopPropagation()">📍 ${d.address}</a>${priceFmt}
+</div>
+${balanceLine(d)}
+</div>`;
+}).join('')}
+</div>
+</div>`;
+}
+
+
+// Property columns helpers (added per dashboard-props spec, 18/05/2026)
+function contractedDeal(inv) {
+const deals = inv.deals || [];
+return deals.find(d => ['under-contract', 'closed', 'sold'].includes(d.status)) || null;
+}
+// Clean partners micro-table for the detail panel: name / ownership% / Israeli ID / residence.
+// Replaces cramming partner identity into the prose Notes field. (Yossi 02/06/2026)
+function partnersTable(inv) {
+const cs = (inv.contacts || []).filter(c => c.role === 'member' || c.role === 'spouse');
+if (!cs.length) return '';
+const rows = cs.map(c => {
+const nm = c.nameHe || c.name || '—';
+const en = (c.name && c.name !== nm) ? ` <span style="color:#aaa;font-size:10px;">${c.name}</span>` : '';
+const pct = (c.ownershipPct != null) ? c.ownershipPct + '%' : '—';
+const id = c.idNumber ? `<span style="direction:ltr;unicode-bidi:embed;">${c.idNumber}</span>` : '<span style="color:#ccc;">—</span>';
+const addr = (c.address || inv.addressIL || '—').replace(/\n/g, ', ');
+return `<tr>
+<td style="padding:4px 8px;border-top:1px solid #eee;font-weight:600;">${nm}${en}</td>
+<td style="padding:4px 8px;border-top:1px solid #eee;text-align:center;white-space:nowrap;">${pct}</td>
+<td style="padding:4px 8px;border-top:1px solid #eee;font-size:11px;white-space:nowrap;">${id}</td>
+<td style="padding:4px 8px;border-top:1px solid #eee;font-size:11px;color:#666;">${addr}</td>
+</tr>`;
+}).join('');
+return `<div class="detail-field" style="grid-column:1/-1;">
+<div class="df-label">👥 שותפים (${cs.length})</div>
+<table style="width:100%;border-collapse:collapse;font-size:12px;margin-top:6px;">
+<thead><tr style="color:#999;font-size:10px;">
+<th style="padding:2px 8px;text-align:right;font-weight:600;">שם</th>
+<th style="padding:2px 8px;text-align:center;font-weight:600;">אחוז</th>
+<th style="padding:2px 8px;text-align:right;font-weight:600;">ת״ז</th>
+<th style="padding:2px 8px;text-align:right;font-weight:600;">כתובת מגורים</th>
+</tr></thead>
+<tbody>${rows}</tbody>
+</table>
+</div>`;
+}
+function shortAddress(addr) {
+if (!addr) return '—';
+const parts = addr.split(',').map(s => s.trim());
+return parts.length >= 2 ? parts.slice(0, 2).join(', ') : addr;
+}
+function fmtUsd(n) {
+if (n == null || isNaN(n)) return '—';
+return '$' + Number(n).toLocaleString();
+}
+// Single contracted property per investor — drives the table columns
+// (address / paid / remaining / days-to-closing). Reads inv.deals[] via
+// contractedDeal(). Spec: one property only (Yossi, 02/06/2026).
+function _dealPaid(cd) {
+if (cd.paidToDate != null) return cd.paidToDate;
+if (cd.earnestAmount != null) return cd.earnestAmount;
+if (cd.earnestPaid != null) return cd.earnestPaid;
+return null;
+}
+function propertyCells(inv) {
+const cd = contractedDeal(inv);
+const empty = '<td class="prop-slot empty">—</td>';
+if (!cd) return empty + empty + empty + empty;
+// 1) Address → Google Maps
+let addrTd = empty;
+if (cd.address) {
+const mapUrl = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(cd.address);
+addrTd = '<td class="prop-slot"><a href="' + mapUrl + '" target="_blank" onclick="event.stopPropagation()" style="color:#1a1a2e;text-decoration:none;font-weight:600;font-size:10px;direction:ltr;display:inline-block;">📍 ' + shortAddress(cd.address) + '</a></td>';
+}
+// 2) Paid so far (earnest / down payment, or full amount if prepaid)
+const paid = _dealPaid(cd);
+const paidTd = (paid == null) ? empty
+: '<td class="prop-slot"><span style="color:#15803d;font-weight:700;">' + fmtUsd(paid) + '</span></td>';
+// 3) Remaining = price − paid
+let remTd = empty;
+if (cd.price != null) {
+const remaining = cd.price - (paid || 0);
+remTd = (remaining <= 0)
+? '<td class="prop-slot"><span style="color:#15803d;font-weight:700;">$0</span></td>'
+: '<td class="prop-slot"><span style="color:#a16207;font-weight:700;">' + fmtUsd(remaining) + '</span></td>';
+}
+// 4) Days to closing (countdown; red overdue/≤7d, amber <15d)
+let due = cd.closingDate || cd.balanceDueDate;
+if (!due && cd.contractDate) {
+const c = new Date(cd.contractDate);
+c.setDate(c.getDate() + 30);
+due = c.toISOString().slice(0, 10);
+}
+let daysTd;
+if (['closed', 'sold'].includes(cd.status)) {
+daysTd = '<td class="prop-slot"><span style="background:#dcfce7;color:#15803d;padding:2px 7px;border-radius:8px;font-weight:700;font-size:10px;white-space:nowrap;">✅ נסגר</span></td>';
+} else if (!due) {
+daysTd = empty;
+} else {
+const dueDate = new Date(due);
+const today = new Date(); today.setHours(0, 0, 0, 0);
+const days = Math.round((dueDate - today) / 86400000);
+let bg = '#dcfce7', fg = '#15803d', txt;
+if (days < 0) { bg = '#fee2e2'; fg = '#b91c1c'; txt = 'איחור ' + (-days); }
+else if (days === 0) { bg = '#fee2e2'; fg = '#b91c1c'; txt = 'היום'; }
+else { if (days < 7) { bg = '#fee2e2'; fg = '#b91c1c'; } else if (days < 15) { bg = '#fef3c7'; fg = '#a16207'; } txt = days + ' ימים'; }
+daysTd = '<td class="prop-slot"><span style="background:' + bg + ';color:' + fg + ';padding:2px 7px;border-radius:8px;font-weight:700;font-size:10px;white-space:nowrap;">' + txt + '</span></td>';
+}
+return addrTd + paidTd + remTd + daysTd;
+}
+
+// (Removed 02/06/2026: the old 3-slot inv.props[] path. The table now shows a
+// single contracted property via propertyCells()/contractedDeal() reading inv.deals[].)
+
+
+let currentFilter = 'all';
+
+function render(f) {
+const tbody = document.getElementById('tbody');
+const filtered = f === 'all' ? investors :
+f === 'ein' ? investors.filter(i => i.ein === 'done') :
+f === 'ss4' ? investors.filter(i => i.ein === 'pending') :
+f === 'forming' ? investors.filter(i => i.stage === 'forming') :
+f === 'bank' ? investors.filter(i => i.bank === 'done') :
+f === 'hold' ? investors.filter(i => i.hold) : investors;
+
+// HOLD (paused) clients always sink to the bottom (stable sort keeps the rest in order)
+const ordered = [...filtered].sort((a, b) => (a.hold ? 1 : 0) - (b.hold ? 1 : 0));
+
+tbody.innerHTML = ordered.map((inv, idx) => {
+const einDisplay = inv.einNumber || (inv.ein === 'done' ? 'EIN התקבל' : 'ממתין');
+const einClass = inv.einNumber ? '' : 'missing';
+return `
+<tr class="inv-row${inv.hold ? ' hold-row' : ''}" data-stage="${inv.stage}" onclick="toggleDetail(this)">
+<td><div class="investor-name">${holdBadge(inv)}${inv.name}${driveButton(inv)}${trelloButton(inv)}${fundingBadge(inv)}</div></td>
+<td><div class="llc-name">${inv.llc}</div></td>
+<td>${badge(inv.formation)}</td>
+<td>${badge(inv.ss4)}</td>
+<td>${badge(inv.ein)}</td>
+<td>${badge(inv.bank)}</td>
+<td>${badge(inv.funding)}</td>
+${propertyCells(inv)}
+
+</tr>
+<tr class="detail-row">
+<td colspan="11">
+<div class="detail-panel">
+<div class="detail-field" onclick="copyField(this, event)">
+<div class="df-label">Israel Address</div>
+<div class="df-value">${inv.addressIL || '<span class="missing">—</span>'}</div>
+<span class="copy-hint">📋 copy</span>
+</div>
+<div class="detail-field" onclick="copyField(this, event)">
+<div class="df-label">EIN Number</div>
+<div class="df-value ${einClass}">${einDisplay}</div>
+<span class="copy-hint">📋 copy</span>
+</div>
+<div class="detail-field" onclick="copyField(this, event)">
+<div class="df-label">US Address (Registered Agent)</div>
+<div class="df-value">${REGISTERED_ADDRESS}</div>
+<span class="copy-hint">📋 copy</span>
+</div>
+<div class="detail-field" onclick="copyField(this, event)">
+<div class="df-label">LLC Name</div>
+<div class="df-value">${inv.llc}</div>
+<span class="copy-hint">📋 copy</span>
+</div>
+<div class="detail-field" onclick="copyField(this, event)">
+<div class="df-label">📱 Phone</div>
+<div class="df-value">${renderPhones(inv)}</div>
+<span class="copy-hint">📋 click to copy</span>
+</div>
+<div class="detail-field" onclick="copyField(this, event)">
+<div class="df-label">📧 Email</div>
+<div class="df-value">${renderEmails(inv)}</div>
+<span class="copy-hint">📋 copy</span>
+</div>
+${partnersTable(inv)}
+${dealsSection(inv)}
+<div class="detail-field" style="grid-column:1/-1;" onclick="copyField(this, event)">
+<div class="df-label">📝 Notes</div>
+<div class="df-value" style="font-size:11px;color:#888;">${inv.notes || '—'}</div>
+<span class="copy-hint">📋 copy</span>
+</div>
+</div>
+</td>
+</tr>`;
+}).join('');
+
+// stats
+document.getElementById('s-total').textContent = investors.length;
+document.getElementById('s-ein').textContent = investors.filter(i => i.ein === 'done').length;
+document.getElementById('s-ss4').textContent = investors.filter(i => i.ein === 'pending').length;
+document.getElementById('s-forming').textContent = investors.filter(i => i.stage === 'forming').length;
+}
+
+function filter(f, btn) {
+currentFilter = f;
+document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+btn.classList.add('active');
+render(f);
+}
+
+function toggleDetail(row) {
+const detail = row.nextElementSibling;
+const wasOpen = detail.classList.contains('open');
+// close all
+document.querySelectorAll('tr.detail-row.open').forEach(r => {
+r.classList.remove('open');
+r.previousElementSibling.classList.remove('expanded');
+});
+// toggle clicked
+if (!wasOpen) {
+detail.classList.add('open');
+row.classList.add('expanded');
+}
+}
+
+function copyField(el, event) {
+event.stopPropagation();
+const label = el.querySelector('.df-label').textContent.trim();
+const val = el.querySelector('.df-value').textContent.trim();
+if (!val || val === '—' || val === 'ממתין') return;
+const skipLabel = label.includes('Phone') || label.includes('Email') || label.includes('Notes');
+navigator.clipboard.writeText(skipLabel ? val : '*' + label + '*' + String.fromCharCode(10) + val).then(() => {
+el.classList.add('copied');
+el.querySelector('.copy-hint').textContent = '✅ copied!';
+setTimeout(() => {
+el.classList.remove('copied');
+el.querySelector('.copy-hint').textContent = '📋 copy';
+}, 1500);
+});
+}
+
+function initDashboard() {
+const now = new Date();
+const opts = { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' };
+document.getElementById('date-display').textContent = now.toLocaleDateString('he-IL', opts);
+document.getElementById('updated-date').textContent = now.toLocaleDateString('he-IL', opts);
+document.getElementById('ra-address').textContent = REGISTERED_ADDRESS;
+render('all');
+}
+
+// Load data and initialize
+loadData();
+</script>
+</body>
+</html>
