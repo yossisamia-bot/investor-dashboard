@@ -503,6 +503,21 @@ const label = deal.price ? `💰 יתרה לקבלן:${balanceFmt} · 📅 ${ddm
 return `<div style="margin-top:6px;padding:4px 10px;border-radius:8px;background:${bg};color:${fg};font-size:11px;display:inline-block;">${label}</div>`;
 }
 
+// Rental status line (deal.rental) — leased = green, listed (on the rental market) = amber.
+function rentalLine(deal) {
+const r = deal.rental;
+if (!r) return '';
+const rent = r.monthlyRent ? `$${r.monthlyRent.toLocaleString()}/חודש` : '';
+const upd = r.updated ? ` · עדכון ${r.updated.slice(8,10)}/${r.updated.slice(5,7)}` : '';
+if (r.status === 'leased') {
+return `<div style="margin-top:4px;padding:4px 10px;border-radius:8px;background:#dcfce7;color:#15803d;font-size:11px;display:inline-block;">🔑 מושכר ב-${rent}${upd}</div>`;
+}
+if (r.status === 'listed') {
+return `<div style="margin-top:4px;padding:4px 10px;border-radius:8px;background:#fef3c7;color:#a16207;font-size:11px;display:inline-block;">📣 בשיווק להשכרה ${rent}${upd}</div>`;
+}
+return '';
+}
+
 function dealsSection(inv) {
 const deals = inv.deals || [];
 if (deals.length === 0) return '';
@@ -523,6 +538,7 @@ return `
 <a href="${mapUrl}" target="_blank" style="color:#1a1a2e;font-weight:600;text-decoration:none;" onclick="event.stopPropagation()">📍 ${d.address}</a>${priceFmt}
 </div>
 ${balanceLine(d)}
+${rentalLine(d)}
 </div>`;
 }).join('')}
 </div>
@@ -614,7 +630,12 @@ c.setDate(c.getDate() + 30);
 due = c.toISOString().slice(0, 10);
 }
 let daysTd;
-if (['closed', 'sold'].includes(cd.status)) {
+// Rental status (Guard PM sync) trumps the closing countdown once known.
+if (cd.rental && cd.rental.status === 'leased') {
+daysTd = '<td class="prop-slot"><span style="background:#dcfce7;color:#15803d;padding:2px 7px;border-radius:8px;font-weight:700;font-size:10px;white-space:nowrap;">🔑 מושכר $' + (cd.rental.monthlyRent || 0).toLocaleString() + '</span></td>';
+} else if (cd.rental && cd.rental.status === 'listed') {
+daysTd = '<td class="prop-slot"><span style="background:#fef3c7;color:#a16207;padding:2px 7px;border-radius:8px;font-weight:700;font-size:10px;white-space:nowrap;">📣 בשיווק $' + (cd.rental.monthlyRent || 0).toLocaleString() + '</span></td>';
+} else if (['closed', 'sold'].includes(cd.status)) {
 daysTd = '<td class="prop-slot"><span style="background:#dcfce7;color:#15803d;padding:2px 7px;border-radius:8px;font-weight:700;font-size:10px;white-space:nowrap;">✅ נסגר</span></td>';
 } else if (!due) {
 daysTd = empty;
